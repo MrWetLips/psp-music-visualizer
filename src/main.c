@@ -19,7 +19,7 @@ PSP_HEAP_SIZE_KB(16384);
 #define NUM_BARS  28
 #define BUF_WIDTH 512
  
-static unsigned short __attribute__((aligned(16))) fb[BUF_WIDTH * SCREEN_H];
+static unsigned short __attribute__((aligned(64))) fb[BUF_WIDTH * SCREEN_H];
  
 static int done = 0;
  
