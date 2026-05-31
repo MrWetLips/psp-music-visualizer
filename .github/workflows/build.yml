@@ -18,18 +18,11 @@ jobs:
       - name: Install tools
         run: apk add --no-cache make bash
 
-      - name: Build and package
+      - name: Build
         run: |
           export PSPDEV=/usr/local/pspdev
           export PATH=$PATH:$PSPDEV/bin
           make
-          echo "=== ELF info ==="
-          psp-readelf -h retroviz.elf
-          echo "=== Imports ==="
-          psp-readelf -d retroviz.elf | grep NEEDED
-          echo "=== Section list ==="
-          psp-readelf -S retroviz.elf | grep -E "lib|prx|module"
-          ls -la EBOOT.PBP
 
       - name: Upload EBOOT
         uses: actions/upload-artifact@v4
@@ -38,7 +31,7 @@ jobs:
           path: EBOOT.PBP
           if-no-files-found: error
 
-      - name: Upload ELF (backup)
+      - name: Upload ELF
         uses: actions/upload-artifact@v4
         with:
           name: RetroViz-ELF
