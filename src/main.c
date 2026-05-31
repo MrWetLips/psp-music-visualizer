@@ -4,7 +4,6 @@
 #include <pspctrl.h>
 #include <pspgu.h>
 #include <pspaudio.h>
-#include <pspaudiolib.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
