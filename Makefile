@@ -1,4 +1,3 @@
-
 TARGET = retroviz
 OBJS = src/main.o
  
@@ -8,7 +7,7 @@ ASFLAGS = $(CFLAGS)
  
 LIBDIR =
 LDFLAGS =
-LIBS = -lm -lpspgu -lpspgum -lpspaudiolib -lpspaudio -lpspctrl -lpspkernel -lpsprtc
+LIBS = -lm -lpspgu -lpspgum -lpspaudiolib -lpspaudio -lpspctrl -lpsprtc -lpspkernel
  
 EXTRA_TARGETS = EBOOT.PBP
 PSP_EBOOT_TITLE = RetroViz - PSP Visualizer
@@ -16,3 +15,4 @@ PSP_EBOOT_SFO = PARAM.SFO
  
 PSPSDK = $(shell psp-config --pspsdk-path)
 include $(PSPSDK)/lib/build.mak
+ 
