@@ -11,6 +11,6 @@ LIBS = -lm -lpspgu -lpspctrl -lpsprtc -lpsppower -lpspkernel
  
 EXTRA_TARGETS = EBOOT.PBP
 PSP_EBOOT_TITLE = RetroViz
- 
+PSP_LARGE_MEMORY = 0
 PSPSDK=$(shell psp-config --pspsdk-path)
 include $(PSPSDK)/lib/build.mak
