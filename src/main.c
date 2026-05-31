@@ -299,7 +299,7 @@ int main(void){
     sceCtrlSetSamplingCycle(0);
     sceCtrlSetSamplingMode(PSP_CTRL_MODE_ANALOG);
     sceDisplaySetMode(0,SCREEN_W,SCREEN_H);
-    sceDisplaySetFrameBuf(fb,BUF_WIDTH,PSP_DISPLAY_PIXEL_FORMAT_565,PSP_DISPLAY_SETBUF_NEXTFRAME);
+    sceDisplaySetFrameBuf((void*)((unsigned int)fb | 0x40000000),BUF_WIDTH,PSP_DISPLAY_PIXEL_FORMAT_565,PSP_DISPLAY_SETBUF_NEXTFRAME);
     srand(sceKernelGetSystemTimeLow());
     lbl_t=90;
     int pm=-1;
