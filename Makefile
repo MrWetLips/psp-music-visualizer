@@ -19,7 +19,6 @@ all: $(TARGET).elf EBOOT.PBP
 
 $(TARGET).elf: $(OBJS)
 	$(CC) $(LDFLAGS) $(OBJS) $(LIBS) -o $@
-	psp-fixup-imports $@
 
 EBOOT.PBP: $(TARGET).elf
 	mksfoex -d MEMSIZE=0 'RetroViz' PARAM.SFO
