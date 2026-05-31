@@ -13,7 +13,7 @@ LDFLAGS = -L$(PSPSDK)/lib \
           -L$(PSPDEV)/psp/lib \
           -Wl,-zmax-page-size=128
 
-LIBS = -lm -lpspgu -lpspctrl -lpsprtc -lpsppower -lpspkernel
+LIBS = -lm -lpspgu -lpspctrl -lpsprtc -lpsppower -lpspdisplay -lpspkernel
 
 all: $(TARGET).elf EBOOT.PBP
 
