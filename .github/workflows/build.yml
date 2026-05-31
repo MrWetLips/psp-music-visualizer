@@ -1,42 +1,12 @@
-name: Build PSP EBOOT
- 
-on:
-  push:
-    branches: [ main ]
-  workflow_dispatch:
- 
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    container:
-      image: pspdev/pspdev:latest
- 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
- 
-      - name: Install tools
-        run: apk add --no-cache make bash
- 
-      - name: Build and package
+- name: Build and package
         run: |
           export PSPDEV=/usr/local/pspdev
           export PATH=$PATH:$PSPDEV/bin
           make
-          ls -la
-          ls -la EBOOT.PBP || echo "NO EBOOT"
-          ls -la retroviz.elf || echo "NO ELF"
- 
-      - name: Upload EBOOT
-        uses: actions/upload-artifact@v4
-        with:
-          name: RetroViz-EBOOT
-          path: EBOOT.PBP
-          if-no-files-found: error
- 
-      - name: Upload ELF (backup)
-        uses: actions/upload-artifact@v4
-        with:
-          name: RetroViz-ELF
-          path: retroviz.elf
-          if-no-files-found: warn
+          echo "=== ELF info ==="
+          psp-readelf -h retroviz.elf
+          echo "=== Imports ==="
+          psp-readelf -d retroviz.elf | grep NEEDED
+          echo "=== Section list ==="
+          psp-readelf -S retroviz.elf | grep -E "lib|prx|module"
+          ls -la EBOOT.PBP
