@@ -7,7 +7,7 @@ ASFLAGS = $(CFLAGS)
  
 LIBDIR =
 LDFLAGS =
-LIBS = -lm -lpspgu -lpspaudiolib -lpspaudio -lpspctrl -lpsprtc -lpspkernel
+LIBS = -lm -lpspgu -lpspctrl -lpsprtc -lpsppower -lpspkernel
  
 EXTRA_TARGETS = EBOOT.PBP
 PSP_EBOOT_TITLE = RetroViz
