@@ -1,4 +1,3 @@
-
 #include <pspkernel.h>
 #include <pspdisplay.h>
 #include <pspctrl.h>
@@ -8,21 +7,21 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
- 
+
 PSP_MODULE_INFO("RetroViz", PSP_MODULE_USER, 1, 0);
 PSP_MAIN_THREAD_ATTR(PSP_THREAD_ATTR_USER);
 PSP_HEAP_SIZE_KB(16384);
- 
+
 #define SCREEN_W 480
 #define SCREEN_H 272
 #define NUM_MODES 8
 #define NUM_BARS  28
 #define BUF_WIDTH 512
- 
+
 static unsigned short __attribute__((aligned(64))) fb[BUF_WIDTH * SCREEN_H];
- 
+
 static int done = 0;
- 
+
 int exit_callback(int arg1, int arg2, void *common) { done = 1; return 0; }
 int cbthread(SceSize args, void *argp) {
     int id = sceKernelCreateCallback("Exit", exit_callback, NULL);
@@ -34,7 +33,7 @@ void setup_cbs(void) {
     int th = sceKernelCreateThread("cb", cbthread, 0x11, 0xFA0, 0, 0);
     if (th >= 0) sceKernelStartThread(th, 0, 0);
 }
- 
+
 static inline unsigned short rgb(int r, int g, int b) {
     return ((r>>3)<<11)|((g>>2)<<5)|(b>>3);
 }
@@ -48,8 +47,7 @@ static void line(int x0,int y0,int x1,int y1,unsigned short c){
     int dx=abs(x1-x0),sx=x0<x1?1:-1,dy=-abs(y1-y0),sy=y0<y1?1:-1,e=dx+dy;
     while(1){pset(x0,y0,c);if(x0==x1&&y0==y1)break;int e2=2*e;if(e2>=dy){e+=dy;x0+=sx;}if(e2<=dx){e+=dx;y0+=sy;}}
 }
- 
-// minimal 5x7 font: digits + A-Z + colon + slash + space
+
 static const unsigned char font[][5]={
 {0,0,0,0,0},{0,0,0x5F,0,0},{0,7,0,7,0},{0x14,0x7F,0x14,0x7F,0x14},
 {0x24,0x2A,0x7F,0x2A,0x12},{0x23,0x13,8,0x64,0x62},{0x36,0x49,0x55,0x22,0x50},
@@ -68,9 +66,8 @@ static const unsigned char font[][5]={
 {0x3E,0x41,0x41,0x41,0x22},{0x7F,0x41,0x41,0x22,0x1C},
 {0x7F,0x49,0x49,0x49,0x41},{0x7F,9,9,9,1},
 {0x3E,0x41,0x49,0x49,0x7A},{0x7F,8,8,8,0x7F},
-{0,0x41,0x7F,0x41,0},{0x20,0x40,0x41,0x3F,1},
-{0x7F,8,0x14,0x22,0x41},{0x7F,0x40,0x40,0x40,0x40},
-{0x7F,2,0x0C,2,0x7F},{0x7F,4,8,0x10,0x7F},
+{0,0x41,0x7F,0x41,0},{0,0x1C,0x22,0x41,0},{0x7F,8,0x14,0x22,0x41},
+{0x7F,0x40,0x40,0x40,0x40},{0x7F,2,0x0C,2,0x7F},{0x7F,4,8,0x10,0x7F},
 {0x3E,0x41,0x41,0x41,0x3E},{0x7F,9,9,9,6},
 {0x3E,0x41,0x51,0x21,0x5E},{0x7F,9,0x19,0x29,0x46},
 {0x46,0x49,0x49,0x49,0x31},{1,1,0x7F,1,1},
@@ -89,12 +86,11 @@ static void dchar(int x,int y,char c,unsigned short col,int s){
 static void dtext(int x,int y,const char*s,unsigned short col,int sc){
     while(*s){dchar(x,y,*s++,col,sc);x+=(5+1)*sc;}
 }
- 
-// bars
+
 static float bars[NUM_BARS],btgt[NUM_BARS],bpeak[NUM_BARS];
 static unsigned int tick=0;
 static int cur_mode=0;
- 
+
 static void upd_bars(void){
     if((tick%8)==0) for(int i=0;i<NUM_BARS;i++){
         float c=NUM_BARS/2.0f,d=fabsf(i-c)/c;
@@ -105,11 +101,11 @@ static void upd_bars(void){
         if(bars[i]>bpeak[i])bpeak[i]=bars[i]; else bpeak[i]=fmaxf(0,bpeak[i]-0.4f);
     }
 }
- 
+
 static char trk[64]="NO NAME";
 static char art[32]="UNKNOWN";
 static int  trk_n=1, trk_s=0;
- 
+
 static void draw_info(void){
     dtext(10,SCREEN_H-22,trk,rgb(255,204,0),1);
     dtext(10,SCREEN_H-12,art,rgb(0,170,204),1);
@@ -118,11 +114,7 @@ static void draw_info(void){
     char b[16]; snprintf(b,16,"TR %02d",trk_n);
     dtext(SCREEN_W-92,SCREEN_H-9,b,rgb(60,60,60),1);
 }
-static void scanl(void){
-    for(int y=0;y<SCREEN_H;y+=4) for(int x=0;x<SCREEN_W;x++) pset(x,y,(fb[y*BUF_WIDTH+x]>>1)&0x7BEF);
-}
- 
-// ---- MODE 0: EQ bars ----
+
 static void m0(void){
     frect(0,0,SCREEN_W,SCREEN_H,rgb(0,13,26));
     int bw=12,gap=4,tot=NUM_BARS*(bw+gap)-gap,sx=(SCREEN_W-tot)/2,by=SCREEN_H-42;
@@ -136,14 +128,14 @@ static void m0(void){
     }
     draw_info();
 }
- 
-// ---- MODE 1: Oscilloscope ----
+
 static void m1(void){
     frect(0,0,SCREEN_W,SCREEN_H,rgb(0,13,26));
     for(int x=0;x<SCREEN_W;x+=40) line(x,0,x,SCREEN_H-45,rgb(0,25,15));
     for(int y=0;y<SCREEN_H-45;y+=20) line(0,y,SCREEN_W,y,rgb(0,25,15));
     int my=(SCREEN_H-45)/2; float avg=0;
-    for(int i=0;i<NUM_BARS;i++) avg+=bars[i]; avg=avg/NUM_BARS*0.35f+12.f;
+    for(int i=0;i<NUM_BARS;i++) avg+=bars[i];
+    avg=avg/NUM_BARS*0.35f+12.f;
     int py=my;
     for(int x=0;x<SCREEN_W;x++){
         float p=x*0.04f+tick*0.05f;
@@ -153,8 +145,7 @@ static void m1(void){
     }
     draw_info();
 }
- 
-// ---- MODE 2: Circular spectrum ----
+
 static void m2(void){
     frect(0,0,SCREEN_W,SCREEN_H,rgb(0,13,26));
     int cx=SCREEN_W/2,cy=(SCREEN_H-45)/2;
@@ -173,8 +164,7 @@ static void m2(void){
     dtext(cx-15,cy-4,"SPEC",rgb(0,170,255),1);
     draw_info();
 }
- 
-// ---- MODE 3: VU meters ----
+
 static float vl=0,vr=0,vlp=0,vrp=0,vtl=0.6f,vtr=0.5f;
 static void m3(void){
     frect(0,0,SCREEN_W,SCREEN_H,rgb(0,13,26));
@@ -195,13 +185,12 @@ static void m3(void){
         }
         frect(xs[s]+4,vt+vh-(int)(vps[s]*vh),vw-8,2,rgb(255,255,255));
         dtext(xs[s]+vw/2-3,vt+vh+6,lb[s],rgb(0,170,255),1);
-        char db[8]; snprintf(db,8,"%dDB",(int)(vs[s]*40)-40);
+        char db[16]; snprintf(db,16,"%dDB",(int)(vs[s]*40)-40);
         dtext(xs[s]+vw/2-10,vt+vh+16,db,rgb(255,204,0),1);
     }
     draw_info();
 }
- 
-// ---- MODE 4: Dot matrix ----
+
 static void m4(void){
     frect(0,0,SCREEN_W,SCREEN_H,rgb(0,13,26));
     int cols=40,rows=16,cw=SCREEN_W/cols,ch=(SCREEN_H-50)/rows;
@@ -212,8 +201,7 @@ static void m4(void){
     }
     draw_info();
 }
- 
-// ---- MODE 5: Starfield ----
+
 typedef struct{float x,y,z,sp;}Star;
 static Star st[120]; static int st_ok=0;
 static void m5(void){
@@ -231,8 +219,7 @@ static void m5(void){
     }
     draw_info();
 }
- 
-// ---- MODE 6: Sony MDX ----
+
 static int scx=SCREEN_W;
 static void m6(void){
     frect(0,0,SCREEN_W,SCREEN_H,rgb(0,5,16));
@@ -253,8 +240,7 @@ static void m6(void){
     }
     dtext(SCREEN_W-40,SCREEN_H-6,"SONY",rgb(30,40,60),1);
 }
- 
-// ---- MODE 7: Kenwood VFD ----
+
 static void m7(void){
     unsigned short bg=rgb(8,4,0),C=rgb(255,170,0),CL=rgb(255,204,68),CD=rgb(80,50,0),CR=rgb(255,68,0);
     frect(0,0,SCREEN_W,SCREEN_H,bg);
@@ -266,7 +252,7 @@ static void m7(void){
     dtext(SCREEN_W-56,13,"KENWOOD",C,1);
     dtext(14,34,"TR",CD,1);
     char tb[4]; snprintf(tb,4,"%02d",trk_n); dtext(32,30,tb,CL,2);
-    int mn=trk_s/60,sc=trk_s%60; char tm[8]; snprintf(tm,8,"%02d:%02d",mn,sc);
+    int mn=trk_s/60,sc2=trk_s%60; char tm[16]; snprintf(tm,16,"%02d:%02d",mn,sc2);
     dtext(SCREEN_W-74,28,tm,CL,2); dtext(SCREEN_W-12,30,"M",CD,1); dtext(SCREEN_W-12,38,"S",CD,1);
     dtext(SCREEN_W-130,54,"KENWOOD DPX-440",C,1);
     int et=62,eb=168,eh=eb-et,bw=14,bg2=2,tw=NUM_BARS*(bw+bg2)-bg2,esx=(SCREEN_W-tw)/2;
@@ -288,12 +274,12 @@ static void m7(void){
     dtext(SCREEN_W-28,SCREEN_H-22,"VOL",CD,1); dtext(SCREEN_W-20,SCREEN_H-12,"22",CL,1);
     for(int y=0;y<SCREEN_H;y+=2) for(int x=0;x<SCREEN_W;x++) pset(x,y,(fb[y*BUF_WIDTH+x]>>1)&0x7BEF);
 }
- 
+
 static const char*mnames[NUM_MODES]={"EQ BARS","OSCILLO","SPECTRUM","VU METER","DOT MATR","STARFLD","SONY MDX","KW VFD"};
 typedef void(*Fn)(void);
 static Fn fns[NUM_MODES]={m0,m1,m2,m3,m4,m5,m6,m7};
 static int lbl_t=0;
- 
+
 int main(void){
     setup_cbs();
     sceCtrlSetSamplingCycle(0);
@@ -302,7 +288,6 @@ int main(void){
     sceDisplaySetFrameBuf((void*)((unsigned int)fb | 0x40000000),BUF_WIDTH,PSP_DISPLAY_PIXEL_FORMAT_565,PSP_DISPLAY_SETBUF_NEXTFRAME);
     srand(sceKernelGetSystemTimeLow());
     lbl_t=90;
-    int pm=-1;
     while(!done){
         SceCtrlData pad; sceCtrlReadBufferPositive(&pad,1);
         static unsigned int prev=0;
