@@ -5,41 +5,40 @@
 #include <pspctrl.h>
 #include <pspaudio.h>
 #include <pspaudiolib.h>
-#include <pspmp3.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
-
-PSP_MODULE_INFO("RetroViz", 0, 1, 0);
-PSP_MAIN_THREAD_ATTR(THREAD_ATTR_USER | THREAD_ATTR_VFPU);
+ 
+PSP_MODULE_INFO("RetroViz", PSP_MODULE_USER, 1, 0);
+PSP_MAIN_THREAD_ATTR(PSP_THREAD_ATTR_USER | PSP_THREAD_ATTR_VFPU);
 PSP_HEAP_SIZE_KB(20480);
-
+ 
 #define SCREEN_W 480
 #define SCREEN_H 272
 #define NUM_MODES 8
 #define NUM_BARS 28
-
+ 
 // --- Framebuffer ---
 static unsigned int __attribute__((aligned(16))) list[262144];
 static unsigned short* vram = (unsigned short*)0x44000000;
-
+ 
 // --- Bars ---
 static float bars[NUM_BARS];
 static float bar_targets[NUM_BARS];
 static float bar_peaks[NUM_BARS];
-
+ 
 // --- State ---
 static int current_mode = 0;
 static int running = 1;
 static unsigned int frame_tick = 0;
-
+ 
 // --- Track info (from ID3 or filename) ---
 static char track_name[128] = "NO NAME";
 static char artist_name[64]  = "UNKNOWN";
 static int  track_num        = 1;
 static int  track_seconds    = 0;
-
+ 
 // ============================================================
 // Exit callback
 // ============================================================
@@ -54,7 +53,7 @@ void setup_callbacks(void) {
     int thid = sceKernelCreateThread("update_thread", callback_thread, 0x11, 0xFA0, 0, 0);
     if (thid >= 0) sceKernelStartThread(thid, 0, 0);
 }
-
+ 
 // ============================================================
 // Drawing helpers — direct framebuffer pixel writes
 // ============================================================
@@ -62,18 +61,18 @@ static inline void put_pixel(int x, int y, unsigned short color) {
     if (x < 0 || x >= SCREEN_W || y < 0 || y >= SCREEN_H) return;
     vram[y * 512 + x] = color;
 }
-
+ 
 // RGB888 -> RGB565
 static inline unsigned short rgb(int r, int g, int b) {
     return ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3);
 }
-
+ 
 static void fill_rect(int x, int y, int w, int h, unsigned short color) {
     for (int dy = 0; dy < h; dy++)
         for (int dx = 0; dx < w; dx++)
             put_pixel(x + dx, y + dy, color);
 }
-
+ 
 static void draw_line(int x0, int y0, int x1, int y1, unsigned short color) {
     int dx = abs(x1-x0), sx = x0<x1?1:-1;
     int dy = -abs(y1-y0), sy = y0<y1?1:-1;
@@ -86,7 +85,7 @@ static void draw_line(int x0, int y0, int x1, int y1, unsigned short color) {
         if (e2 <= dx) { err += dx; y0 += sy; }
     }
 }
-
+ 
 static void draw_ellipse(int cx, int cy, int rx, int ry, unsigned short color) {
     for (int angle = 0; angle < 360; angle++) {
         float a = angle * 3.14159f / 180.0f;
@@ -95,7 +94,7 @@ static void draw_ellipse(int cx, int cy, int rx, int ry, unsigned short color) {
         put_pixel(x, y, color);
     }
 }
-
+ 
 // Simple 5x7 bitmap font (ASCII 32-127)
 // Minimal — only digits, letters, colon, slash, space
 static const unsigned char font5x7[][5] = {
@@ -159,7 +158,7 @@ static const unsigned char font5x7[][5] = {
     {0x07,0x08,0x70,0x08,0x07}, // Y
     {0x61,0x51,0x49,0x45,0x43}, // Z
 };
-
+ 
 static void draw_char(int x, int y, char c, unsigned short color, int scale) {
     if (c < 32 || c > 90) c = 32;
     int idx = c - 32;
@@ -172,7 +171,7 @@ static void draw_char(int x, int y, char c, unsigned short color, int scale) {
         }
     }
 }
-
+ 
 static void draw_text(int x, int y, const char* str, unsigned short color, int scale) {
     int cx = x;
     while (*str) {
@@ -182,7 +181,7 @@ static void draw_text(int x, int y, const char* str, unsigned short color, int s
         cx += (5 + 1) * scale;
     }
 }
-
+ 
 // ============================================================
 // Fake audio bars (simulated — real MP3 needs pspmp3 callbacks)
 // ============================================================
@@ -201,7 +200,7 @@ static void update_bars(void) {
         else bar_peaks[i] = fmaxf(0.0f, bar_peaks[i] - 0.4f);
     }
 }
-
+ 
 // ============================================================
 // Draw common track info footer
 // ============================================================
@@ -209,31 +208,31 @@ static void draw_track_info(void) {
     unsigned short cy = rgb(255, 204, 0);
     unsigned short cb = rgb(0, 170, 204);
     unsigned short cdim = rgb(40, 40, 40);
-
+ 
     draw_text(10, SCREEN_H - 22, track_name, cy, 1);
     draw_text(10, SCREEN_H - 12, artist_name, cb, 1);
-
+ 
     // progress bar
     fill_rect(SCREEN_W - 92, SCREEN_H - 18, 82, 3, cdim);
     fill_rect(SCREEN_W - 92, SCREEN_H - 18, 50, 3, rgb(0, 119, 187));
-
+ 
     // track number
     char buf[16];
     snprintf(buf, sizeof(buf), "TR %02d", track_num);
     draw_text(SCREEN_W - 92, SCREEN_H - 9, buf, cdim, 1);
 }
-
+ 
 // ============================================================
 // MODE 0: Classic EQ bars (Alpine style)
 // ============================================================
 static void draw_mode0(void) {
     fill_rect(0, 0, SCREEN_W, SCREEN_H, rgb(0, 13, 26));
-
+ 
     int bw = 12, gap = 4;
     int total = NUM_BARS * (bw + gap) - gap;
     int sx = (SCREEN_W - total) / 2;
     int base_y = SCREEN_H - 42;
-
+ 
     for (int i = 0; i < NUM_BARS; i++) {
         int x = sx + i * (bw + gap);
         int bh = (int)bars[i];
@@ -254,25 +253,25 @@ static void draw_mode0(void) {
     fill_rect(0, base_y + 2, SCREEN_W, 1, rgb(0, 51, 85));
     draw_track_info();
 }
-
+ 
 // ============================================================
 // MODE 1: Oscilloscope
 // ============================================================
 static void draw_mode1(void) {
     fill_rect(0, 0, SCREEN_W, SCREEN_H, rgb(0, 13, 26));
-
+ 
     // grid
     for (int x = 0; x < SCREEN_W; x += 40)
         draw_line(x, 0, x, SCREEN_H - 45, rgb(0, 30, 20));
     for (int y = 0; y < SCREEN_H - 45; y += 20)
         draw_line(0, y, SCREEN_W, y, rgb(0, 30, 20));
-
+ 
     int mid_y = (SCREEN_H - 45) / 2;
     float avg = 0;
     for (int i = 0; i < NUM_BARS; i++) avg += bars[i];
     avg /= NUM_BARS;
     float amp = avg * 0.4f + 15.0f;
-
+ 
     int prev_y = mid_y;
     for (int x = 0; x < SCREEN_W; x++) {
         float phase = x * 0.04f + frame_tick * 0.05f;
@@ -286,30 +285,30 @@ static void draw_mode1(void) {
     }
     draw_track_info();
 }
-
+ 
 // ============================================================
 // MODE 2: Circular spectrum
 // ============================================================
 static void draw_mode2(void) {
     fill_rect(0, 0, SCREEN_W, SCREEN_H, rgb(0, 13, 26));
     int cx = SCREEN_W / 2, cy = (SCREEN_H - 45) / 2;
-
+ 
     int radii[] = {40, 60, 80, 100};
     for (int r = 0; r < 4; r++)
         draw_ellipse(cx, cy, radii[r], radii[r], rgb(0, 17, 51));
-
+ 
     int slices = 48;
     for (int i = 0; i < slices; i++) {
         float angle = (float)i / slices * 2.0f * 3.14159f - 3.14159f / 2.0f;
         int bi = i * NUM_BARS / slices;
         float blen = bars[bi] * 0.55f + 16.0f;
         float ratio = bars[bi] / 120.0f;
-
+ 
         int x1 = (int)(cx + cosf(angle) * 38);
         int y1 = (int)(cy + sinf(angle) * 38);
         int x2 = (int)(cx + cosf(angle) * (38 + blen * 0.65f));
         int y2 = (int)(cy + sinf(angle) * (38 + blen * 0.65f));
-
+ 
         unsigned short col;
         if (ratio > 0.75f)      col = rgb(255, 51, 0);
         else if (ratio > 0.5f)  col = rgb(255, 170, 0);
@@ -319,16 +318,16 @@ static void draw_mode2(void) {
     draw_text(cx - 20, cy - 4, "SPEC", rgb(0, 170, 255), 1);
     draw_track_info();
 }
-
+ 
 // ============================================================
 // MODE 3: VU meters
 // ============================================================
 static float vu_l = 0, vu_r = 0, vu_lp = 0, vu_rp = 0;
 static float vu_tl = 0.6f, vu_tr = 0.5f;
-
+ 
 static void draw_mode3(void) {
     fill_rect(0, 0, SCREEN_W, SCREEN_H, rgb(0, 13, 26));
-
+ 
     if ((frame_tick % 12) == 0) {
         vu_tl = 0.3f + ((float)rand()/RAND_MAX) * 0.65f;
         vu_tr = 0.3f + ((float)rand()/RAND_MAX) * 0.65f;
@@ -337,13 +336,13 @@ static void draw_mode3(void) {
     vu_r = vu_r < vu_tr ? fminf(vu_r + 0.04f, vu_tr) : fmaxf(vu_r - 0.02f, 0.0f);
     if (vu_l > vu_lp) vu_lp = vu_l; else vu_lp = fmaxf(0.0f, vu_lp - 0.005f);
     if (vu_r > vu_rp) vu_rp = vu_r; else vu_rp = fmaxf(0.0f, vu_rp - 0.005f);
-
+ 
     int vu_h = SCREEN_H - 70, vu_w = 60, vu_top = 20;
     float vals[2]  = {vu_l, vu_r};
     float peaks[2] = {vu_lp, vu_rp};
     const char* labels[2] = {"L", "R"};
     int xs[2] = {SCREEN_W/2 - 90, SCREEN_W/2 + 30};
-
+ 
     for (int s = 0; s < 2; s++) {
         fill_rect(xs[s], vu_top, vu_w, vu_h, rgb(0, 17, 34));
         int segs = 20;
@@ -367,7 +366,7 @@ static void draw_mode3(void) {
     }
     draw_track_info();
 }
-
+ 
 // ============================================================
 // MODE 4: Dot matrix
 // ============================================================
@@ -393,14 +392,14 @@ static void draw_mode4(void) {
     }
     draw_track_info();
 }
-
+ 
 // ============================================================
 // MODE 5: Starfield
 // ============================================================
 typedef struct { float x, y, z, speed; } Star;
 static Star stars[120];
 static int stars_init = 0;
-
+ 
 static void draw_mode5(void) {
     if (!stars_init) {
         for (int i = 0; i < 120; i++) {
@@ -411,13 +410,13 @@ static void draw_mode5(void) {
         }
         stars_init = 1;
     }
-
+ 
     fill_rect(0, 0, SCREEN_W, SCREEN_H, rgb(0, 8, 20));
-
+ 
     float avg = 0;
     for (int i = 0; i < NUM_BARS; i++) avg += bars[i];
     avg /= (NUM_BARS * 120.0f);
-
+ 
     int cx = SCREEN_W / 2, cy = (SCREEN_H - 50) / 2;
     for (int i = 0; i < 120; i++) {
         stars[i].z += stars[i].speed * (1.0f + avg * 3.0f);
@@ -435,33 +434,33 @@ static void draw_mode5(void) {
     }
     draw_track_info();
 }
-
+ 
 // ============================================================
 // MODE 6: Sony MDX style
 // ============================================================
 static int scroll_x = SCREEN_W;
-
+ 
 static void draw_mode6(void) {
     fill_rect(0, 0, SCREEN_W, SCREEN_H, rgb(0, 5, 16));
     fill_rect(8, 8, SCREEN_W-16, SCREEN_H-55, rgb(0, 8, 32));
-
+ 
     // pixel grid bg
     for (int gx = 12; gx < SCREEN_W-16; gx += 9)
         for (int gy = 12; gy < SCREEN_H-57; gy += 9)
             fill_rect(gx, gy, 8, 8, rgb(0, 13, 40));
-
+ 
     // scrolling track name
     draw_text(scroll_x, SCREEN_H/2 - 16, track_name, rgb(232, 244, 255), 2);
     draw_text(scroll_x + 80, SCREEN_H/2 + 2, artist_name, rgb(255, 153, 0), 1);
     scroll_x -= 2;
     if (scroll_x < -(int)(strlen(track_name) * 12 + 20)) scroll_x = SCREEN_W;
-
+ 
     // AUX tag
     fill_rect(14, 14, 38, 18, rgb(255, 102, 0));
     draw_text(16, 18, "AUX", rgb(0, 0, 0), 1);
     fill_rect(58, 14, 28, 18, rgb(0, 136, 255));
     draw_text(60, 18, "MP3", rgb(255, 255, 255), 1);
-
+ 
     // mini EQ bottom
     int n_mini = 36, bw2 = 10, gap2 = 2;
     int total2 = n_mini * (bw2 + gap2) - gap2;
@@ -480,7 +479,7 @@ static void draw_mode6(void) {
     }
     draw_text(SCREEN_W - 40, SCREEN_H - 6, "SONY", rgb(30, 40, 60), 1);
 }
-
+ 
 // ============================================================
 // MODE 7: Kenwood DPX-440 VFD SPEC display
 // ============================================================
@@ -490,14 +489,14 @@ static void draw_mode7(void) {
     unsigned short CL   = rgb(255, 204, 68);  // bright amber
     unsigned short CD   = rgb(80, 50, 0);     // dim amber
     unsigned short CRED = rgb(255, 68, 0);    // red peak
-
+ 
     fill_rect(0, 0, SCREEN_W, SCREEN_H, bg);
     // border
     draw_line(4, 4, SCREEN_W-4, 4, rgb(58, 40, 0));
     draw_line(4, SCREEN_H-4, SCREEN_W-4, SCREEN_H-4, rgb(58, 40, 0));
     draw_line(4, 4, 4, SCREEN_H-4, rgb(58, 40, 0));
     draw_line(SCREEN_W-4, 4, SCREEN_W-4, SCREEN_H-4, rgb(58, 40, 0));
-
+ 
     // top tags: CD TAPE TUNER
     const char* src_tags[] = {"CD", "TAPE", "TUNER"};
     for (int i = 0; i < 3; i++) {
@@ -509,7 +508,7 @@ static void draw_mode7(void) {
         draw_line(14+i*52+(int)strlen(src_tags[i])*6+8, 10, 14+i*52+(int)strlen(src_tags[i])*6+8, 24, col);
         draw_text(14+i*52+4, 13, src_tags[i], col, 1);
     }
-
+ 
     // SPEC EQ tags
     const char* disp_tags[] = {"SPEC", "EQ"};
     for (int i = 0; i < 2; i++) {
@@ -521,34 +520,34 @@ static void draw_mode7(void) {
         draw_line(tx+strlen(disp_tags[i])*6+8, 10, tx+strlen(disp_tags[i])*6+8, 24, C);
     }
     draw_text(SCREEN_W - 56, 13, "KENWOOD", C, 1);
-
+ 
     // TR + track num
     draw_text(14, 34, "TR", CD, 1);
     char trbuf[4]; snprintf(trbuf, sizeof(trbuf), "%02d", track_num);
     draw_text(32, 30, trbuf, CL, 2);
-
+ 
     // time
     int mins = track_seconds / 60, secs = track_seconds % 60;
     char timebuf[8]; snprintf(timebuf, sizeof(timebuf), "%02d:%02d", mins, secs);
     draw_text(SCREEN_W - 74, 28, timebuf, CL, 2);
     draw_text(SCREEN_W - 12, 30, "M", CD, 1);
     draw_text(SCREEN_W - 12, 38, "S", CD, 1);
-
+ 
     // KENWOOD DPX-440
     draw_text(SCREEN_W - 130, 54, "KENWOOD DPX-440", C, 1);
     draw_text(SCREEN_W - 12, 54, "C", CD, 1);
-
+ 
     // Main EQ bars with horizontal stripe texture
     int eq_top = 62, eq_bot = 168, eq_h = eq_bot - eq_top;
     int bar_w = 14, bar_gap = 2;
     int total_w = NUM_BARS * (bar_w + bar_gap) - bar_gap;
     int eq_sx = (SCREEN_W - total_w) / 2;
-
+ 
     for (int i = 0; i < NUM_BARS; i++) {
         int x = eq_sx + i * (bar_w + bar_gap);
         int filled_h = (int)(bars[i] / 120.0f * eq_h);
         int by = eq_bot - filled_h;
-
+ 
         // horizontal stripes inside bar
         for (int sy = by; sy < eq_bot; sy += 3) {
             float row_ratio = (float)(eq_bot - sy) / eq_h;
@@ -558,25 +557,25 @@ static void draw_mode7(void) {
             else                        col = CL;
             fill_rect(x, sy, bar_w, 2, col);
         }
-
+ 
         // peak marker
         if (bar_peaks[i] > 4) {
             int py = eq_bot - (int)(bar_peaks[i] / 120.0f * eq_h) - 2;
             fill_rect(x, py, bar_w, 2, CL);
         }
     }
-
+ 
     // separator line
     draw_line(10, eq_bot + 2, SCREEN_W - 10, eq_bot + 2, C);
-
+ 
     // Bottom 7-band EQ with freq labels
     const char* freqs[] = {"63","160","400","1K","2.5K","6.3K","16K"};
     int n_freq = 7;
     int eq_low_top = eq_bot + 8, eq_low_h = 36;
     int pan_w = (SCREEN_W - 20) / n_freq;
-
+ 
     draw_text(12, eq_low_top + eq_low_h/2 - 4, "L", CD, 1);
-
+ 
     for (int i = 0; i < n_freq; i++) {
         int px = 20 + i * pan_w;
         // box
@@ -584,31 +583,31 @@ static void draw_mode7(void) {
         draw_line(px, eq_low_top+eq_low_h, px+pan_w-2, eq_low_top+eq_low_h, CD);
         draw_line(px, eq_low_top, px, eq_low_top+eq_low_h, CD);
         draw_line(px+pan_w-2, eq_low_top, px+pan_w-2, eq_low_top+eq_low_h, CD);
-
+ 
         int bi = i * NUM_BARS / n_freq;
         float energy = bars[bi] / 120.0f;
         int line_len = (int)((pan_w - 16) * fmaxf(0.1f, energy));
         fill_rect(px + 6, eq_low_top + eq_low_h/2 - 1, line_len, 3, C);
-
+ 
         // freq label
         draw_text(px + pan_w/2 - (int)strlen(freqs[i])*3, eq_low_top + eq_low_h + 4, freqs[i], CD, 1);
     }
-
+ 
     // Status line: LOUD DSP RPT RDM ST
     const char* status[] = {"LOUD","DSP","RPT","RDM","ST"};
     for (int i = 0; i < 5; i++)
         draw_text(14 + i*42, SCREEN_H - 20, status[i], i < 2 ? CL : C, 1);
-
+ 
     // VOL
     draw_text(SCREEN_W - 28, SCREEN_H - 22, "VOL", CD, 1);
     draw_text(SCREEN_W - 20, SCREEN_H - 12, "22", CL, 1);
-
+ 
     // scanlines
     for (int y = 0; y < SCREEN_H; y += 2)
         for (int x = 0; x < SCREEN_W; x++)
             put_pixel(x, y, (vram[y*512+x] >> 1) & 0x7BEF);
 }
-
+ 
 // ============================================================
 // Mode dispatch
 // ============================================================
@@ -617,22 +616,22 @@ static DrawFn draw_fns[NUM_MODES] = {
     draw_mode0, draw_mode1, draw_mode2, draw_mode3,
     draw_mode4, draw_mode5, draw_mode6, draw_mode7
 };
-
+ 
 static const char* mode_names[NUM_MODES] = {
     "EQ BARS", "OSCILLOSCOPE", "SPECTRUM", "VU METERS",
     "DOT MATRIX", "STARFIELD", "SONY MDX", "KENWOOD VFD"
 };
-
+ 
 // ============================================================
 // Input handling
 // ============================================================
 static void handle_input(void) {
     SceCtrlData pad;
     sceCtrlReadBufferPositive(&pad, 1);
-
+ 
     static unsigned int prev_buttons = 0;
     unsigned int pressed = pad.Buttons & ~prev_buttons;
-
+ 
     if (pressed & PSP_CTRL_LTRIGGER) {
         current_mode = (current_mode - 1 + NUM_MODES) % NUM_MODES;
     }
@@ -646,15 +645,15 @@ static void handle_input(void) {
     if (pressed & PSP_CTRL_CROSS) {
         if (track_num > 1) { track_num--; track_seconds = 0; }
     }
-
+ 
     prev_buttons = pad.Buttons;
 }
-
+ 
 // ============================================================
 // Draw mode name overlay (top center, fades out)
 // ============================================================
 static int mode_label_timer = 0;
-
+ 
 static void draw_mode_label(void) {
     if (mode_label_timer <= 0) return;
     mode_label_timer--;
@@ -662,7 +661,7 @@ static void draw_mode_label(void) {
     int x = (SCREEN_W - (int)strlen(mode_names[current_mode]) * 6) / 2;
     draw_text(x, 4, mode_names[current_mode], col, 1);
 }
-
+ 
 // ============================================================
 // Main
 // ============================================================
@@ -670,43 +669,43 @@ int main(void) {
     setup_callbacks();
     sceCtrlSetSamplingCycle(0);
     sceCtrlSetSamplingMode(PSP_CTRL_MODE_ANALOG);
-
+ 
     // set framebuffer
     sceDisplaySetMode(0, SCREEN_W, SCREEN_H);
     sceDisplaySetFrameBuf((void*)vram, 512, PSP_DISPLAY_PIXEL_FORMAT_565, 1);
-
+ 
     // seed random
     srand(sceKernelGetSystemTimeLow());
-
+ 
     // init bars
     for (int i = 0; i < NUM_BARS; i++) {
         bars[i] = 0;
         bar_targets[i] = 20 + (float)rand()/RAND_MAX * 60.0f;
         bar_peaks[i] = 0;
     }
-
+ 
     int prev_mode = -1;
     mode_label_timer = 120;
-
+ 
     while (running) {
         handle_input();
-
+ 
         if (current_mode != prev_mode) {
             mode_label_timer = 90;
             prev_mode = current_mode;
         }
-
+ 
         update_bars();
         draw_fns[current_mode]();
         draw_mode_label();
-
+ 
         // simulate track time
         if ((frame_tick % 60) == 0) track_seconds++;
-
+ 
         frame_tick++;
         sceDisplayWaitVblankStart();
     }
-
+ 
     sceKernelExitGame();
     return 0;
 }
