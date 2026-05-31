@@ -1,16 +1,45 @@
-- name: Build
-        run: |
-          export PSPDEV=/usr/local/pspdev
-          export PATH=$PATH:$PSPDEV/bin
-          make
-          mkdir -p iso/PSP_GAME/SYSDIR
-          mkdir -p iso/PSP_GAME/USRDIR
-          cp EBOOT.PBP iso/PSP_GAME/SYSDIR/EBOOT.BIN
-          cp PARAM.SFO iso/PSP_GAME/PARAM.SFO
-          genisoimage -o RetroViz.iso \
-            -D -R -J \
-            -iso-level 3 \
-            -volid "RETROVIZ" \
-            -sysid "PSP GAME" \
-            iso/
+name: Build PSP EBOOT
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: pspdev/pspdev:latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install tools
+        run: apk add --no-cache make bash cdrkit
+
+      - name: Build
+        run: >-
+          export PSPDEV=/usr/local/pspdev &&
+          export PATH=$PATH:$PSPDEV/bin &&
+          make &&
+          mkdir -p iso/PSP_GAME/SYSDIR &&
+          mkdir -p iso/PSP_GAME/USRDIR &&
+          cp EBOOT.PBP iso/PSP_GAME/SYSDIR/EBOOT.BIN &&
+          cp PARAM.SFO iso/PSP_GAME/PARAM.SFO &&
+          genisoimage -o RetroViz.iso -D -R -J -iso-level 3 -volid RETROVIZ iso/ &&
           ls -la RetroViz.iso
+
+      - name: Upload EBOOT
+        uses: actions/upload-artifact@v4
+        with:
+          name: RetroViz-EBOOT
+          path: EBOOT.PBP
+          if-no-files-found: error
+
+      - name: Upload ISO
+        uses: actions/upload-artifact@v4
+        with:
+          name: RetroViz-ISO
+          path: RetroViz.iso
+          if-no-files-found: warn
