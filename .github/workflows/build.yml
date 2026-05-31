@@ -1,10 +1,39 @@
-- name: Build
+name: Build PSP EBOOT
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: pspdev/pspdev:latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install tools
+        run: apk add --no-cache make bash
+
+      - name: Build
         run: |
           export PSPDEV=/usr/local/pspdev
           export PATH=$PATH:$PSPDEV/bin
           make
-          echo "=== All imports ==="
-          psp-nm retroviz.elf | grep -i "U " || true
-          echo "=== Sections ==="
-          psp-objdump -h retroviz.elf | head -50 || true
-          ls -la EBOOT.PBP
+
+      - name: Upload EBOOT
+        uses: actions/upload-artifact@v4
+        with:
+          name: RetroViz-EBOOT
+          path: EBOOT.PBP
+          if-no-files-found: error
+
+      - name: Upload ELF
+        uses: actions/upload-artifact@v4
+        with:
+          name: RetroViz-ELF
+          path: retroviz.elf
+          if-no-files-found: warn
