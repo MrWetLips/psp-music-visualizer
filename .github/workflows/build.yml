@@ -1,0 +1,40 @@
+name: Build PSP EBOOT
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build with pspdev Docker
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            pspdev/pspdev:latest \
+            sh -c "make"
+
+      - name: Upload EBOOT.PBP
+        uses: actions/upload-artifact@v4
+        with:
+          name: RetroViz-EBOOT
+          path: EBOOT.PBP
+          if-no-files-found: error
+
+      - name: Upload full build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: RetroViz-full-build
+          path: |
+            EBOOT.PBP
+            retroviz.elf
+          if-no-files-found: warn
