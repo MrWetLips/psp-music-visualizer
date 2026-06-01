@@ -1,45 +1,51 @@
-name: Build PSP EBOOT
-
+name: Build RetroViz
+ 
 on:
   push:
     branches: [ main ]
+  pull_request:
+    branches: [ main ]
   workflow_dispatch:
-
+ 
 jobs:
   build:
     runs-on: ubuntu-latest
-    container:
-      image: pspdev/pspdev:latest
-
+ 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Install tools
-        run: apk add --no-cache make bash cdrkit
-
-      - name: Build
-        run: >-
-          export PSPDEV=/usr/local/pspdev &&
-          export PATH=$PATH:$PSPDEV/bin &&
-          make &&
-          mkdir -p iso/PSP_GAME/SYSDIR &&
-          mkdir -p iso/PSP_GAME/USRDIR &&
-          cp EBOOT.PBP iso/PSP_GAME/SYSDIR/EBOOT.BIN &&
-          cp PARAM.SFO iso/PSP_GAME/PARAM.SFO &&
-          genisoimage -o RetroViz.iso -D -R -J -iso-level 3 -volid RETROVIZ iso/ &&
-          ls -la RetroViz.iso
-
-      - name: Upload EBOOT
+ 
+      # FIX: используем проверенный образ с рабочим PSPSDK
+      - name: Setup PSP toolchain
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y wget xz-utils
+          # Скачиваем prebuilt toolchain
+          wget -q https://github.com/pspdev/pspdev/releases/latest/download/pspdev-ubuntu-latest-x86_64.tar.gz -O /tmp/pspdev.tar.gz
+          sudo tar -xzf /tmp/pspdev.tar.gz -C /usr/local/
+          echo "PSPDEV=/usr/local/pspdev" >> $GITHUB_ENV
+          echo "PSPSDK=/usr/local/pspdev/psp/sdk" >> $GITHUB_ENV
+          echo "/usr/local/pspdev/bin" >> $GITHUB_PATH
+          echo "/usr/local/pspdev/psp/bin" >> $GITHUB_PATH
+ 
+      - name: Build EBOOT.PBP
+        run: |
+          make clean || true
+          make
+ 
+      - name: Verify EBOOT.PBP exists and has valid size
+        run: |
+          ls -lh EBOOT.PBP
+          SIZE=$(stat -c%s EBOOT.PBP)
+          echo "EBOOT size: $SIZE bytes"
+          if [ "$SIZE" -lt 10000 ]; then
+            echo "ERROR: EBOOT.PBP is too small, build likely failed"
+            exit 1
+          fi
+ 
+      - name: Upload EBOOT.PBP artifact
         uses: actions/upload-artifact@v4
         with:
           name: RetroViz-EBOOT
           path: EBOOT.PBP
-          if-no-files-found: error
-
-      - name: Upload ISO
-        uses: actions/upload-artifact@v4
-        with:
-          name: RetroViz-ISO
-          path: RetroViz.iso
-          if-no-files-found: warn
+          retention-days: 30
